@@ -1,5 +1,10 @@
 # 第一届上海交通大学高性能计算综合能力竞赛
 
+为方便大家做题，比赛所有赛题均会放置到 git 仓库，可以一键 clone 所有赛题源码，对于之后放出的赛题/做出的题目修改可以使用 `git pull` 方便的同步。
+本次将在2个平台上放出赛题：
+* [SJTU Git](https://git.sjtu.edu.cn/xflops1/hello-hpc-1st)
+* [Github](https://github.com/HPC-SJTU/hello-hpc-1st)
+
 ## 比赛介绍
 
 上海交通大学高性能计算综合能力竞赛（HelloHPC）是以科学计算与人工智能应用优化的入门向竞赛。
@@ -118,6 +123,10 @@
 * [HPC入门指南-登录交我算集群](https://xflops.sjtu.edu.cn/hpc-start-guide/network/login-HPC/): 给出了校内赛时在交我算集群开发的最佳实践建议
 * [交我算官方文档](https://docs.hpc.sjtu.edu.cn/)：交我算集群配置介绍、slurm 使用方法等
 
+**上述两个队列申请时均需要加入`-q <队列名称>`进行申请**，例如：
+``` bash
+salloc -N 1 -n 8 -p kp_interact -q kp_interact --time=2:00:00 # 在kp_intercat队列上申请单节点8核心的任务，限时2小时
+```
 
 ## 注意事项
 
