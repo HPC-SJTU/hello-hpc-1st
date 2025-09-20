@@ -100,6 +100,7 @@
 请注意：
 * 运行脚本时请在 `evaluate.py` 所在文件目录下运行
 * 运行脚本的评分仅作参考，最终得分以Xflops超算队的测试结果为准
+* 如果你的环境缺少 `pyyaml` 库运行脚本时会报错，可以运行 `pip install --force-reinstall pyyaml` 安装（注意，部分节点系统中带有 `pyyaml` 库，如不加入 `--force-reinstall` 将会识别到库已存在跳过安装）
 
 
 ## 比赛集群使用指导
