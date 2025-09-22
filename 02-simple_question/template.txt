@@ -1,0 +1,30 @@
+1. (5')[单选] 在高性能计算集群中，哪个工具通常用于作业调度和资源管理？（  ）
+     A. 微信群
+     B. Slurm
+     C. Docker Swarm
+     D. Apache Mesos
+
+
+2. (5')[不定项] 下面哪些语言是编译型语言：（  ）
+     A. C/C++
+     B. Python
+     C. Fortran
+     D. Go
+     E. Rust
+     F. JavaScript
+     G. Java
+     H. Shell Script
+     I. C#
+
+3. (5') 假设 SJTUG 镜像站存储服务器发生变更，社长任命你为存储迁移负责人，聪明的你决定先估算一下需要迁移多久以安排迁移时间。你先使用 `du -sh` 命令统计得出共需搬迁 20T 的数据，迁移时将使用千兆有线网传输，估算最快需要（  ）小时完成搬迁。（四舍五入保留1位小数）
+4. (3 x 5') 在交我算 arm 集群的登录节点（kplogin1）上运行 `ping huge1` 时发送的 ICMP 报文的源 MAC 地址为（  ），目标 MAC 地址为（  ），源 IP 地址为（  ）。 
+5. (10') 计算 Xflops 官网的 banner (如图所示)对应的原文件（.svg文件）的 sha512 哈希值为（  ）。
+
+![](https://xflops.sjtu.edu.cn/oj/files/banner_pic.png)
+
+6. (2 x 5') 网址“net.sjtu.edu.cn”的 IPv4 地址为（  ），IPv6 地址为（  ）。
+7. (10') 交我算集群使用 module 工具管理环境，在 arm 集群上已使用此工具安装了华为毕昇编译器，可使用 `module load bisheng` 加载。其用于编译 C++ 的编译器的可执行文件路径是（  ）。
+8. (5') 截至 2025 年 8 月 20 日，NVIDIA ConnectX-8 C8180 网卡固件 (Firmware) 的最新版本的版本号是（  ）？
+9.  (2 x 5') 交我算集群上有几个 a800 节点？（  ）名称分别是什么？（  ）（如果有多个结果请用半角逗号隔开）
+10. (10')截止 2025 年 6 月，TOP500 榜单第 3 名超级计算机使用的数学库是？（  ）（注：请勿使用缩写，填写全称，如 BLAS 请写成 Basic Linear Algebra Subprograms）
+11. (3 x 5') arm128c256g 计算节点 cpu socket 有（  ）个，NUMA node有（  ）个。NUMA node distance 矩阵第一行为（  ）？（数字之间用半角逗号隔开）

@@ -1,0 +1,6 @@
+writeup.md
+source_code/conus12km
+source_code/dependencies
+source_code/WRF-4.2
+*.tar
+*.tar.gz

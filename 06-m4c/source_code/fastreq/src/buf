@@ -1,0 +1,212 @@
+#ifndef FASTREQ_BUF
+#define FASTREQ_BUF
+
+#include <vector>
+#include <string>
+#include <span>
+#include <cstring>
+
+#include <unistd.h>
+#include <sys/uio.h>
+#include <errno.h>
+
+using std::vector;
+using std::string;
+using std::span;
+using std::byte;
+
+using buf = span<const byte>;
+using buf_mut = span<byte>;
+
+// Buf concept
+template<class B>
+concept Buf = requires(size_t len, B b) {
+    { B::new_(len) } -> std::same_as<B>;
+    { b.span() } -> std::same_as<buf>;
+    { b.span_mut() } -> std::same_as<buf_mut>;
+};
+
+
+constexpr int IO_AGAIN = -1;
+constexpr int IO_SUCCEED = 0;
+
+// 0: success
+// -1: should poll again
+// positive: general linux io error
+using IoState = int;
+
+// -----------------------------------------------------------------------------
+//                               BufReader
+// -----------------------------------------------------------------------------
+class BufReader {
+    static constexpr size_t DEFAULT_BUFSZ = 64 * 1024;
+
+    int               fd_;
+    std::vector<byte> buf_;
+    size_t            filled_ = 0;   // bytes currently in buf_
+    size_t            pos_    = 0;   // next byte to hand out
+    size_t            done    = 0;   // state for partial read
+
+    // refill the internal buffer
+    IoState refill();
+
+public:
+    BufReader(int nonblock_fd, size_t buf_sz = DEFAULT_BUFSZ)
+        : fd_(nonblock_fd), buf_(buf_sz) {}
+
+    // Exactly |b.size()| bytes, possibly across many poll() calls.
+    IoState read_exact(buf_mut b);
+
+    // Read until |ch| is found.  Returns the bytes *including* ch in the buffer.
+    // After success, subsequent calls continue *after* the delimiter.
+    IoState read_until(byte ch, vector<byte>& b);
+
+    
+    BufReader(const BufReader&) = delete;
+    BufReader& operator=(const BufReader&) = delete;
+    BufReader(BufReader&& w) noexcept
+        : fd_(w.fd_), buf_(std::move(w.buf_)), filled_(w.filled_),
+          pos_(w.pos_), done(w.done)
+    {
+        w.fd_ = -1; w.filled_ = 0; w.pos_ = 0; w.done = 0;
+    }
+    BufReader& operator=(BufReader&& w) noexcept {
+        if (this != &w) {
+            this->~BufReader();
+            new (this) BufReader(std::move(w));
+        }
+        return *this;
+    }
+};
+
+// -----------------------------------------------------------------------------
+//                               BufWriter
+// -----------------------------------------------------------------------------
+class BufWriter {
+    static constexpr size_t DEFAULT_BUFSZ = 64 * 1024;
+
+    int               fd_;
+    std::vector<byte> buf_;
+    size_t            off;  // partial flush offset
+
+    // flush *everything* currently in buf_
+    IoState flush_buffer();
+
+public:
+    BufWriter(int nonblock_fd, size_t buf_sz = DEFAULT_BUFSZ)
+        : fd_(nonblock_fd), buf_(), off(0) { buf_.reserve(buf_sz); }
+
+    // Append to internal buffer; auto-flush when full.
+    IoState write_all(buf b);
+
+    // Force out everything buffered so far.
+    IoState flush() { return flush_buffer(); }
+
+    BufWriter(const BufWriter&) = delete;
+    BufWriter& operator=(const BufWriter&) = delete;
+    BufWriter(BufWriter&& w) noexcept
+        : fd_(w.fd_), buf_(std::move(w.buf_)), off(w.off) 
+    {
+        w.fd_ = -1;
+        w.off = 0;
+    }
+    BufWriter& operator=(BufWriter&& w) noexcept {
+        if (this != &w) {
+            this->~BufWriter();
+            new (this) BufWriter(std::move(w));
+        }
+        return *this;
+    }
+};
+
+// -------------------------------- BufReader ----------------------------------
+IoState BufReader::refill() {
+    // move any unread leftovers to front
+    if (pos_ < filled_) {
+        std::memmove(buf_.data(), buf_.data() + pos_, filled_ - pos_);
+    }
+    filled_ -= pos_;
+    pos_ = 0;
+    const size_t n = buf_.size() - filled_;
+    if (n == 0) return ENOBUFS;
+    ssize_t r = ::read(fd_, buf_.data() + filled_, n);
+    if (r > 0) {
+        filled_ += r;
+        return IO_SUCCEED;
+    }
+    if (r == 0) return EPIPE; // EOF
+    const int err = errno;
+    return (err == EAGAIN || err == EWOULDBLOCK) ? IO_AGAIN : err;
+}
+
+IoState BufReader::read_exact(buf_mut b) {
+    size_t want = b.size();
+    while (done < want) {
+        size_t avail = filled_ - pos_;
+        if (avail) {
+            size_t take = std::min(avail, want - done);
+            std::memcpy(b.data() + done, buf_.data() + pos_, take);
+            pos_  += take;
+            done  += take;
+            if (done == want) break;
+        }
+        // need more bytes
+        IoState st = refill();
+        if (st != IO_SUCCEED) return st;
+    }
+    done = 0;
+    return IO_SUCCEED;
+}
+
+IoState BufReader::read_until(byte ch, vector<byte>& b) {
+    // keep scanning/refilling until we see the delimiter
+    while (true) {
+        const byte* p = static_cast<const byte*>(std::memchr(
+            buf_.data() + pos_, static_cast<int>(ch), filled_ - pos_
+        ));
+        if (p) {
+            b.insert(b.end(), (const byte*)buf_.data() + pos_, p + 1);
+            pos_ = p + 1 - buf_.data();
+            return IO_SUCCEED;
+        }
+        // delimiter not in current buffer
+        b.insert(b.end(), buf_.begin() + pos_, buf_.begin() + filled_);
+        pos_ = filled_;
+        IoState st = refill();
+        if (st != IO_SUCCEED) return st;
+    }
+}
+
+// -------------------------------- BufWriter ----------------------------------
+IoState BufWriter::flush_buffer() {
+    while (off < buf_.size()) {
+        ssize_t w = ::write(fd_, buf_.data() + off, buf_.size() - off);
+        if (w > 0) {
+            off += w;
+            continue;
+        }
+        if (w == 0) return EPIPE;
+        const int err = errno;
+        return (err == EAGAIN || err == EWOULDBLOCK) ? IO_AGAIN : err;
+    }
+    buf_.clear();
+    off = 0;
+    return IO_SUCCEED;
+}
+
+// optimized for small write
+IoState BufWriter::write_all(buf b) {
+    if (buf_.capacity() < b.size()) [[unlikely]]
+        buf_.reserve(b.size());
+    size_t space = buf_.capacity() - buf_.size();
+    while(space < b.size()) [[unlikely]] {
+        // buffer full – flush it
+        IoState st = flush_buffer();
+        if (st != IO_SUCCEED) return st;
+        space = buf_.capacity() - buf_.size();
+    }
+    buf_.insert(buf_.end(), b.begin(), b.end());
+    return IO_SUCCEED;
+}
+
+#endif

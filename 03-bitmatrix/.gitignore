@@ -1,0 +1,5 @@
+*.exe
+*.o
+temp/
+build/
+source_code/bitmatrix

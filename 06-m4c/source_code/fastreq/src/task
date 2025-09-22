@@ -1,0 +1,160 @@
+#include <charconv>   // for std::from_chars
+#include <stdexcept>
+#include "buf"
+
+uint64_t to_int(std::span<const std::byte> buf);
+
+class PollTask {
+public:
+    PollTask() = default;
+    ~PollTask() = default;
+    virtual IoState poll() = 0;
+};
+
+class ReqSender: public PollTask {
+    span<const string> urls;
+    size_t done = 0;
+    BufWriter writer;
+    int poll_state = 0; // index of poll
+public:
+    virtual IoState poll() override;
+    ReqSender(const ReqSender &other) = delete;
+    ReqSender& operator=(const ReqSender &other) = delete;
+
+    ReqSender(span<const string> urls, int fd)
+        : urls(urls), writer(BufWriter(fd)) {}
+
+    ReqSender(ReqSender&& other) noexcept        // move ctor
+        : urls(std::move(other.urls)),
+          done(std::exchange(other.done, 0)),
+          writer(std::move(other.writer)),
+          poll_state(std::exchange(other.poll_state, 0)) {}
+
+    ReqSender& operator=(ReqSender&& other) noexcept  // move assign
+    {
+        if (this != &other) {
+            urls        = std::move(other.urls);
+            done        = std::exchange(other.done, 0);
+            writer      = std::move(other.writer);
+            poll_state  = std::exchange(other.poll_state, 0);
+        }
+        return *this;
+    }
+};
+
+template<Buf B>
+class ReqReceiver: public PollTask {
+    span<B> dest;
+    size_t done = 0;
+    BufReader reader;
+    int poll_state = 0; // index of poll
+    vector<byte> buf_; // cap: 1024
+public:
+    virtual IoState poll() override;
+
+    ReqReceiver(span<B> dest, int fd)
+        : dest(dest), reader(BufReader(fd))
+        { buf_.reserve(1024); }
+    
+    ReqReceiver(const ReqReceiver &other) = delete;
+    ReqReceiver& operator=(const ReqReceiver &other) = delete;
+    ReqReceiver(ReqReceiver&& other) noexcept        // move ctor
+        : dest(std::move(other.dest)),
+          done(std::exchange(other.done, 0)),
+          reader(std::move(other.reader)),
+          poll_state(std::exchange(other.poll_state, 0)),
+          buf_(std::move(other.buf_)) {}
+
+    ReqReceiver& operator=(ReqReceiver&& other) noexcept  // move assign
+    {
+        if (this != &other) {
+            dest       = std::move(other.dest);
+            done       = std::exchange(other.done, 0);
+            reader     = std::move(other.reader);
+            poll_state = std::exchange(other.poll_state, 0);
+            buf_  = std::move(other.buf_);
+        }
+        return *this;
+    }
+};
+
+#define POLL(expr) { const IoState n = expr; if (n != IO_SUCCEED) return n; }
+
+IoState ReqSender::poll() {
+    while(done < urls.size()) switch (poll_state) {
+    case 0:
+        POLL(writer.write_all(buf{(const byte*)"GET ", 4}));
+        poll_state = 1;
+    case 1:
+        {const auto& url = urls[done];
+        POLL(writer.write_all({(const byte*)url.data(), url.size()}))};
+        poll_state = 2;
+    case 2:
+        POLL(writer.write_all(buf{(const byte*)"\r\n\r\n", 4}));
+        poll_state = 3;
+    case 3:
+        if (done + 1 == urls.size()) {
+            POLL(writer.flush());
+        }
+        done++;
+        poll_state = 0;
+        break;
+    default:
+        throw "unreachable";
+    }
+    return IO_SUCCEED;
+}
+
+
+const char CHARM_HEAD[] = "\
+HTTP/1.1 200 OK\r\n\
+Connection: Keep-Alive\r\n\
+Content-Type: application/octet-stream\r\n\
+Content-Length: ";
+
+constexpr size_t CHARM_HEAD_SIZE = sizeof(CHARM_HEAD) - 1;
+
+template<Buf B>
+IoState ReqReceiver<B>::poll() {
+    while(done < dest.size()) {
+    switch (poll_state) {
+    case 0:
+        buf_.resize(CHARM_HEAD_SIZE);
+        dest[done] = B::new_(1024);
+        POLL(reader.read_exact(buf_));
+        buf_.resize(0);
+        poll_state = 1;
+    case 1:
+        POLL(reader.read_until((byte)'\r', buf_));
+        {const size_t content_length = to_int({buf_.data(), buf_.size()-1});
+        dest[done] = std::move(B::new_(content_length));}
+        buf_.resize(3);
+        poll_state = 2;
+    case 2:
+        POLL(reader.read_exact(buf_));
+        poll_state = 3;
+    case 3:
+        POLL(reader.read_exact(dest[done].span_mut()));
+        done++;
+        poll_state = 0;
+        break;
+    default:
+        throw "unreachable";
+    }}
+    return IO_SUCCEED;
+}
+
+uint64_t to_int(std::span<const std::byte> buf) {
+    // 1. treat the bytes as ASCII characters
+    const char* first = reinterpret_cast<const char*>(buf.data());
+    const char* last  = first + buf.size();
+
+    // 2. parse the integer
+    uint64_t value{};
+    auto [ptr, ec] = std::from_chars(first, last, value);
+
+    if (ec != std::errc{} || ptr != last)   // parse error or extra chars
+        throw std::invalid_argument("bad integer " + std::string{first, buf.size()});
+
+    return value;
+}

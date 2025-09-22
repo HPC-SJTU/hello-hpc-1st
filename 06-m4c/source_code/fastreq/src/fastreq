@@ -1,0 +1,193 @@
+#ifndef FASTREQ
+#define FASTREQ
+
+#include <sys/socket.h>
+#include <sys/epoll.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <cstring>
+#include <vector>
+#include <string>
+#include <span>
+#include <memory>
+#include <algorithm>
+
+#include "task"
+
+using std::unique_ptr;
+
+const int MAX_CONNECTIONS = 8;
+const int EPOLL_TIMEOUT_MS = 1000;
+
+class Fd {
+private:
+    static constexpr int INVALID_FD = -1;
+    int fd_;
+    
+public:
+    // Default constructor - invalid fd
+    Fd() noexcept : fd_(INVALID_FD) {}
+    
+    // Constructor from raw file descriptor
+    explicit Fd(int fd) noexcept : fd_(fd) {}
+    
+    // Destructor - automatically closes fd if valid
+    ~Fd() noexcept {
+        close();
+    }
+    
+    // Move constructor
+    Fd(Fd&& other) noexcept : fd_(other.fd_) {
+        other.fd_ = INVALID_FD;
+    }
+    
+    // Move assignment operator
+    Fd& operator=(Fd&& other) noexcept {
+        if (this != &other) {
+            close(); // Close current fd if valid
+            fd_ = other.fd_;
+            other.fd_ = INVALID_FD;
+        }
+        return *this;
+    }
+    
+    // Delete copy constructor and copy assignment (non-copyable)
+    Fd(const Fd&) = delete;
+    Fd& operator=(const Fd&) = delete;
+
+    operator int() const noexcept {
+        return fd_;
+    }
+    
+    // Check if fd is valid
+    bool is_valid() const noexcept {
+        return fd_ != INVALID_FD;
+    }
+    
+    // Manually close the file descriptor
+    void close() noexcept {
+        if (is_valid()) {
+            ::close(fd_);
+            fd_ = INVALID_FD;
+        }
+    }
+};
+
+template<Buf B>
+vector<B> fastreq(vector<string> urls, uint16_t remote_port) {
+    // Parse remote address
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));          // zero-out
+    addr.sin_family = AF_INET;               // IPv4
+    addr.sin_port   = htons(remote_port);          // port 18080, network byte order
+    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr); // 127.0.0.1
+
+    // Create epoll instance
+    Fd epoll_fd {epoll_create1(0)};
+    if (epoll_fd == -1) {
+        throw std::runtime_error("epoll_create1 failed");
+    }
+    
+    // Prepare buffers and tasks
+    vector<B> results(urls.size());
+    vector<unique_ptr<PollTask>> senders;
+    vector<unique_ptr<PollTask>> receivers;
+    vector<Fd> sockets;
+    vector<uint32_t> epoll_events(MAX_CONNECTIONS);
+    
+    // Create connections and setup tasks
+    const size_t chunks = (urls.size()+MAX_CONNECTIONS-1) / MAX_CONNECTIONS;
+    for (size_t i = 0; i < MAX_CONNECTIONS; ++i) {
+        const size_t start = i*chunks, end = std::min((i+1)*chunks, urls.size());
+        if (start >= end) continue;
+        
+        // Create socket
+        int sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        if (sock == -1) {
+            throw std::runtime_error("socket creation failed");
+        }
+        
+        // Connect (non-blocking)
+        int ret = connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+        if (ret == -1 && errno != EINPROGRESS) {
+            close(sock);
+            throw std::runtime_error(std::strerror(errno));
+        }
+        
+        sockets.push_back(Fd(sock));
+        
+        // Create sender and receiver
+        
+        senders.push_back(std::make_unique<ReqSender>(span{&urls[start], end-start}, sock));
+        receivers.push_back(std::make_unique<ReqReceiver<B>>(span{&results[start], end-start}, sock));
+        
+        // Add to epoll
+        epoll_event ev{};
+        ev.events = EPOLLOUT | EPOLLIN | EPOLLET; // Edge-triggered
+
+        ev.data.u64 = static_cast<uint64_t>(i);
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &ev) == -1) {
+            close(sock);
+            throw std::runtime_error("epoll_ctl failed");
+        }
+        epoll_events[i] = ev.events;
+    }
+    
+    // Main polling loop
+    vector<epoll_event> events(MAX_CONNECTIONS);
+    size_t completed = 0;
+    
+    while (completed < MAX_CONNECTIONS*2) {
+        int nfds = epoll_wait(epoll_fd, events.data(), events.size(), EPOLL_TIMEOUT_MS);
+        
+        if (nfds == -1) {
+            if (errno == EINTR) {
+                throw std::runtime_error("interrupted");
+            }
+            throw std::runtime_error("epoll_wait failed");
+        }
+        
+        for (int i = 0; i < nfds; ++i) {
+            uint64_t task = events[i].data.u64;
+            uint32_t evs = events[i].events;
+            if (evs & EPOLLERR || evs & EPOLLHUP) {
+                throw std::runtime_error("Epoll event error on connection "+std::to_string(task));
+            }
+            const auto check_on = [&](uint32_t event, span<unique_ptr<PollTask>> tasks) {
+                if (evs & event) {
+                    IoState state = tasks[task].get()->poll();
+                    if (state == IO_AGAIN) return;
+                    else if (state == IO_SUCCEED) {
+                        completed++;
+                        epoll_events[task] &= ~event;
+                        int task_fd = sockets[task];
+                        if ((epoll_events[task] & (EPOLLIN|EPOLLOUT)) == 0) {
+                            if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, task_fd, nullptr) == -1) {
+                                close(task);
+                                throw std::runtime_error("epoll_ctl del failed");
+                            }
+                        } else {
+                            epoll_event ev{};
+                            ev.events = epoll_events[task];
+                            ev.data.u64 = static_cast<uint64_t>(task);
+                            if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, task_fd, &ev) == -1) {
+                                close(task);
+                                throw std::runtime_error("epoll_ctl mod failed");
+                            }
+                        }
+                    }
+                    else if (state > 0) throw std::runtime_error(strerror(state));
+                    else throw std::runtime_error("unreachable");
+                }
+            };
+            check_on(EPOLLIN, receivers);
+            check_on(EPOLLOUT, senders);
+        }
+    }
+    
+    return results;
+}
+
+#endif
