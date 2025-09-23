@@ -65,11 +65,11 @@ python submit.py 1 # 提交阶段1的文件
 
 题目中附带了 `evaluate.py` 模拟OJ的评测逻辑供你进行自测，其依赖项为 `vllm` 的依赖项的子集，设计为在你安装完成 `vllm` 的环境下使用，用法如下：
 ``` bash
-python evaluate.py -stage <使用的stage> -port <vllm运行使用的端口>
+python evaluate.py --stage <使用的stage> --port <vllm运行使用的端口>
 # 这里stage的含义与提交文件脚本中stage含义一致
 # 示例：
 python evaluate.py # 默认的stage为0,此时只评测编译运行vllm部分
-python evaluate.py -stage 1 # 评测stage为1（即评测本题目所有内容）
+python evaluate.py --stage 1 # 评测stage为1（即评测本题目所有内容）
 ```
 在评测机测试过程中，解量化时间的计算方式如下：在完成一次预热操作后，取后续三次测试结果的平均值作为最终的解量化时间（记为 $t_{avg}$）。同时，为保障测试性能稳定性，明确要求冷启动时间不得超过阈值，该阈值按 $\max (t_{avg} \times 1.5, t_{avg}+1.5)$ 的公式计算得出。（此计算逻辑已在给出的 `evaluate.py` 实现）
 
