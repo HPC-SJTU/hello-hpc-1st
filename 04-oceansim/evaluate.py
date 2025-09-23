@@ -149,7 +149,7 @@ def main():
     # 获取脚本所在目录的绝对路径
     script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     print(f"测试脚本所在目录: {script_dir}")
-    
+    os.system(f"chmod +x {script_dir}/source_code/verify")
     # 定义算例配置
     case_configs = {
         1: {'weight': 25, 'full_time': 0.84, 'base_time': 8.4},

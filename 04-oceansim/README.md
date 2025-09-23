@@ -33,7 +33,7 @@
 
 - `download.sh` 测试样例下载脚本（需在集群上使用）
 
-`download.sh`使用方法：`download.sh <文件夹路径>`。样例将被下载到你填入的路径下，我们建议你下载到source_code目录。
+`download.sh`使用方法：`bash ./download.sh`。样例将被下载到当前工作目录下，我们建议你直接在source_code目录下运行该脚本。
 
 请勿移动`evaluate.py`的位置，运行时它将自动读取`source_code`文件夹下的内容。
 
