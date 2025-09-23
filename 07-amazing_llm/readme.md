@@ -10,7 +10,7 @@
 
 ### 编译运行 `vllm`
 
-1. 编译安装题目给出的 `vllm` 推理框架（源码压缩包可运行 `source_code/download.sh` 下载到 `source_code` 文件夹中）
+1. 编译安装题目给出的 `vllm` 推理框架（源码压缩包可运行 `download.sh` 下载到 `source_code` 文件夹中）
 2. 给出的源码压缩包已进行部分修改，其在载入权重的部分将调用 `q6bit` 库中的 `recover_from_quant` 函数进行解量化。自定义库 `q6bit` 的 `baseline` 代码已给出，你需要自行安装到环境中。完成安装后运行 `source_code/run.py` 成功启动服务。启动服务成功后可运行 `source_code/test_server.py` 向服务发送请求查看回复，同时该脚本将会把回复存储到 `ans.txt` 供你提交。
 
 > `source_code/run.py` 与 `source_code/test_server.py` 均可以通过 `-port` 参数指定 `vllm` 运行的端口，注意 `run.py` 会检测指定的端口是否占用，如果占用将尝试寻找空闲端口， 传入 `test_server.py` 的端口号需与 `vllm` 的实际运行端口一致。这两个脚本的默认运行端口均为 `18000`。
