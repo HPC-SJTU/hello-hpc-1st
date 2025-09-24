@@ -56,7 +56,7 @@ WRF编译请参考[编译和安装](https://www.hikunpeng.com/document/detail/zh
 编译完成并能运行出正确结果得到50分，剩余50分由算例运行时间在`10min30s`到`15min`内对数线性插值得到（运行超过15min得0分，小于10min30s得50分）。插值公式如下：
 
 $$
-score = \frac{ln(t_{zero})−ln(t_{your})}{ln(t_{zero})−ln(t_{full})}
+score = 50 \times \frac{ln(t_{zero})−ln(t_{your})}{ln(t_{zero})−ln(t_{full})}
 $$
 
 ## 资源限制
