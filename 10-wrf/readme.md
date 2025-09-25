@@ -29,7 +29,7 @@ source_code
 
 你需要提交 `writeup.md`、`source_code/build`、`source_code/run` 和 `source_code/build_scripts/` 文件夹。我们提供了 `submit.py`，只需运行 `python submit.py` 即可一键生成提交文件提交到 OJ。请将编译依赖与wrf本体的逻辑写在`build`中，将运行wrf的逻辑写在`run`中，`build_scripts/`路径下可以放一些辅助编译的其他脚本，如没有这些脚本，只需要创建一个空目录即可。
 
-评测机将在`source_code`目录下，运行`./build`以及`./run`，并对后者计时。要求最终 `wrf` 生成的日志文件`rsl.out.0000`应当位于 `source_code/conus12km/conus12km/`（如果运行生成日志在其他路径，请在run脚本中包括将`rsl.out.0000`拷贝到`source_code/conus12km/conus12km/`的命令）。**严禁在脚本中修改 wrf 运行生成的日志，任何尝试修改 wrf 运行时生成的日志的行为都将视为作弊！**
+评测机将在`source_code`目录下，运行`./build`以及`./run`，并对后者计时。要求最终 `wrf` 生成的日志文件`rsl.out.0000`应当位于 `source_code/conus12km/conus12km/`（如果运行生成日志在其他路径，请在run脚本中包括将`rsl.out.0000`拷贝到`source_code/conus12km/conus12km/`的命令）。**严禁在脚本中修改 wrf 的输入算例与运行生成的日志，任何尝试修改 wrf 运行时的输入算例与生成的日志的行为都将视为作弊！**
 
 ## evaluate.py
 
