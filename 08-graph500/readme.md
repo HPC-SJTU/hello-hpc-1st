@@ -42,8 +42,8 @@ bash graph.sh #运行你自己的实现
 
 | 算例  | 分数占比 | 满分(TEPS) | 基础(TEPS) |
 | --- | ---- | ----| -----|
-| bfs  harmonic_mean_TEPS | 60% | 1.4e+09 |  3e+07 |
-| sssp harmonic_mean_TEPS | 40% | 4.5e+08 |  6e+06 |
+| bfs  harmonic_mean_TEPS | 60% | 1.4e+09 |  3e+08 |
+| sssp harmonic_mean_TEPS | 40% | 4.5e+08 |  6e+07 |
 
 实际获得分数的计算公式为
 
