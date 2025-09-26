@@ -31,6 +31,8 @@ source_code
 
 评测机将在`source_code`目录下，运行`./build`以及`./run`，并对后者计时。要求最终 `wrf` 生成的日志文件`rsl.out.0000`应当位于 `source_code/conus12km/conus12km/`（如果运行生成日志在其他路径，请在run脚本中包括将`rsl.out.0000`拷贝到`source_code/conus12km/conus12km/`的命令）。**严禁在脚本中修改 wrf 的输入算例与运行生成的日志，任何尝试修改 wrf 运行时的输入算例与生成的日志的行为都将视为作弊！**
 
+**注意：本题需要从源码编译列出的 4 个依赖和 wrf，并运行你编译得到的 wrf，请勿使用集群自带的 wrf 或其它依赖，任何尝试使用集群自带文件跳过编译步骤的行为都将视为作弊。**
+
 ## evaluate.py
 
 我们提供的评测脚本`evaluate.py`可以自动评测你的得分，可以直接 `python evaluate.py` 使用脚本。
