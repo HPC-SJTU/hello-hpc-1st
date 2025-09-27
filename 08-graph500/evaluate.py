@@ -11,7 +11,7 @@ import yaml
 
 def parse_args():
     # Fixed, not configurable via CLI
-    timeout = 20 * 60  # 1200 seconds
+    timeout = 40 * 60  # 2400 seconds
     script = os.path.join(os.path.dirname(__file__), "source_code", "graph.sh")
     return SimpleNamespace(timeout=timeout, script=script)
 
