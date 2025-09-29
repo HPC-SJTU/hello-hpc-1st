@@ -6,18 +6,16 @@ void calAcceleration(const double* solutionminusone,
 	const FNS& fns, const double* SurfacePara, 
 	double* FAC, double* theta, double* phi, double* r)
 {   
-	
 	int if_colli = 0;
-		//
-	double 	sfR = 0, NVx = 0, NVy = 0, NVz = 0, 
-		 	NVt = 0, NVp = 0, tmp1 = 0, tmp2 = 0, 
-		 	dzs = 0, vzs = 0;
-	double fp[3] = { 0 }, GravF[3] = { 0 }, Nf[3] = { 0 }, ff[3] = { 0 }, tmp3[3] = { 0 }, tmp4[3] = { 0 }, force[3] = { 0 };
-
 
 	for (int i = 0; i < fns.NP; i++) {
 		
 
+		//
+		double 	sfR = 0, NVx = 0, NVy = 0, NVz = 0, 
+				NVt = 0, NVp = 0, tmp1 = 0, tmp2 = 0, 
+				dzs = 0, vzs = 0;
+		double fp[3] = { 0 }, GravF[3] = { 0 }, Nf[3] = { 0 }, ff[3] = { 0 }, tmp3[3] = { 0 }, tmp4[3] = { 0 }, force[3] = { 0 };
 		CoorTran(1, &solutionminusone[3 * i], &solutionminusone[(3 * i + 1)], &solutionminusone[(3 * i + 2)], &theta[i], &phi[i], &r[i]);
 		SurfacePoints(theta[i], phi[i], SurfacePara, sfR, NVx, NVy, NVz, FAC);
 		CoorTran(1, &NVx, &NVy, &NVz, &NVt, &NVp, &tmp1);
